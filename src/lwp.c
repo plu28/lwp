@@ -113,7 +113,11 @@ void remove(thread victim) {
 
 // get the next process in the queue
 thread next(void) {
+	if (top == NULL) {
+		return NULL;
+	}
 	top = top->prev;
+	return top->tinfo;
 }
 
 int qlen(void) {
