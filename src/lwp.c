@@ -1,7 +1,95 @@
 // light weight processes
 #include "../include/lwp.h"
+#include <stdio.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/resource.h>
+#include <stdlib.h>
+// #define _GNU_SOURCE maybe include MAP_STACK in mmap if things are exploding running on server
+#define DEFAULT_STACK_SIZE 8338608 // 8 MiB
+#define BASE_LWP_SIZE 256
 
-tid_t lwp_create(lwpfun func, void* arg) {}
+static long tid_count = 0;
+
+static thread* t_mem = NULL; // holds where the thread list is on the heap
+static size_t t_len; // current size of thread list
+static size_t t_cap; // maximum size of thread list
+
+tid_t lwp_create(lwpfun func, void* arg) {
+	// allocate thread data structure of not allocated already
+	if (t_mem == NULL) {
+		t_mem = (thread*)malloc(sizeof(thread) * BASE_LWP_SIZE);
+		if (t_mem == NULL) {
+			perror("malloc");
+			return NO_THREAD;
+		}
+	}
+
+	// check if thread data structure can hold the additional thread and realloc if it cant
+	if (t_len == t_cap) {
+		size_t new_t_cap = t_cap * 2; 
+		thread* new_t_mem = realloc(t_mem, sizeof(thread) * new_t_cap);
+		if (new_t_mem == NULL) {
+			perror("realloc");
+			return NO_THREAD;
+		}
+		t_cap = new_t_cap;
+		t_mem = new_t_mem;
+	}
+
+
+	// allocate a stack for the thread using mmap
+	long page_size = sysconf(_SC_PAGE_SIZE);
+	if (page_size == -1) {
+		perror("sysconf");
+		return NO_THREAD;
+	}
+
+	size_t stack_size;
+	struct rlimit rlim;
+	int rlimit_ret = getrlimit(RLIMIT_STACK, &rlim);
+	if (rlimit_ret == -1 | rlim.rlim_cur == RLIM_INFINITY) {
+		// fall back to default size
+		stack_size = DEFAULT_STACK_SIZE;
+	} else {
+		stack_size = rlim.rlim_cur;
+	}
+
+	// align stack size to page size
+	if (stack_size % page_size != 0) {
+		stack_size += page_size - (stack_size % page_size);
+	}
+
+	// TODO: Make sure memory allocated for the stack is also munmap'd at some point in the future (probably in exit or wait)
+	void* lwp_stack = mmap(NULL, stack_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	if (lwp_stack == MAP_FAILED) {
+		perror("mmap");
+		return NO_THREAD;
+	}
+
+	rfile reg_file;
+	// TODO: Configure reg_file properly for the new lwp
+
+	// allocate thread on heap
+	thread new_thread = (thread)malloc(sizeof(context));
+	t_mem[t_len] = new_thread;
+
+	new_thread->tid = tid_count++;
+	new_thread->stack = (unsigned long*) lwp_stack;
+	new_thread->stacksize = stack_size;
+	new_thread->state = reg_file;
+	new_thread->next = NULL; 
+	if (t_len > 0) {
+		new_thread->prev = t_mem[t_len - 1]; 
+	} else {
+		new_thread->prev = NULL;
+	}
+	new_thread->sched_one = NULL;
+	new_thread->sched_two = NULL;
+
+}
+
 void lwp_exit(int status) {}
 tid_t lwp_gettid(void) {}
 void lwp_yield(void) {}
@@ -10,4 +98,6 @@ tid_t lwp_wait(int* status) {}
 void lwp_set_schedular(scheduler func) {}
 scheduler lwp_get_scheduler(void) {}
 thread tid2thread(tid_t tid) {}
+
+void swap_rfiles(rfile *old, rfile *new) {}
 

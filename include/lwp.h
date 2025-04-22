@@ -11,7 +11,7 @@
 
 
 #if defined(__x86_64)
-#include <fp.h>
+#include "fp.h"
 typedef struct __attribute__ ((aligned(16))) __attribute__ ((packed))
 registers {
   unsigned long rax;            /* the sixteen architecturally-visible regs. */
@@ -46,8 +46,8 @@ typedef struct threadinfo_st {
   size_t        stacksize;      /* Size of allocated stack */
   rfile         state;          /* saved registers         */
   unsigned int  status;         /* exited? exit status?    */
-  thread        lib_one;        /* Two pointers reserved   */
-  thread        lib_two;        /* for use by the library  */
+  thread        next;         /* Two pointers reserved   */
+  thread        prev;        /* for use by the library  */
   thread        sched_one;      /* Two more for            */
   thread        sched_two;      /* schedulers to use       */
   thread        exited;         /* and one for lwp_wait()  */

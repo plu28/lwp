@@ -14,8 +14,8 @@ typedef struct QNode {
 } QNode;
 
 static QNode* top; // holds the current node at the top of the queue
-static int q_len; // holds the length of the queue
-static int q_cap; // holds the current maximum capacity of the queue
+static size_t q_len; // holds the length of the queue
+static size_t q_cap; // holds the current maximum capacity of the queue
 static QNode** q_mem; // holds where the queue is stored on the heap
 
 
