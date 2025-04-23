@@ -160,10 +160,11 @@ void lwp_yield(void) {
 	// if the scheduler says theres no next thread then thats it.
 	if (next == NULL) {
 		exit(curr_thread->status);
-		return;
 	}
 	next = tid2thread(next->tid);
-	swap_rfiles(&curr_thread->state, &next->state);
+	thread temp = curr_thread;
+	curr_thread = next;
+	swap_rfiles(&temp->state, &next->state);
 }
 
 tid_t lwp_wait(int* status) {}
@@ -176,7 +177,8 @@ scheduler lwp_get_scheduler(void) {
 	return &curr_scheduler;
 }
 
-tid_t lwp_gettid(void) {}
+tid_t lwp_gettid(void) {
+}
 thread tid2thread(tid_t tid) {}
 
 void swap_rfiles(rfile *old, rfile *new) {}
