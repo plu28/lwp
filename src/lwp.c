@@ -217,10 +217,6 @@ void lwp_yield(void) {
 	swap_rfiles(&temp->state, &next->state);
 }
 
-tid_t lwp_wait(int* status) {
-	return 404;
-}
-
 void lwp_set_scheduler(scheduler func) {
 	struct scheduler round_robin = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen};
 	if (func == NULL) {
