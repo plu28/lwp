@@ -18,7 +18,7 @@ static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
 static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
 
-static int initted = 0;
+static int initted = 0; // flag for seeing if our scheduler has been initted
 
 static void lwp_wrap(lwpfun func, void* arg) {
 	int rval = func(arg);
@@ -121,11 +121,35 @@ tid_t lwp_create(lwpfun func, void* arg) {
 }
 
 void lwp_start(void) {
+	// create a lwp out of the main thread
+	thread new_thread = (thread)malloc(sizeof(context));
+	t_mem[t_len] = new_thread;
 
+	rfile reg_file;
+
+	new_thread->tid = tid_count++;
+	new_thread->stack = NULL; // main thread has its own stack
+	new_thread->stacksize = 0;
+	new_thread->state = reg_file;
+	new_thread->lwp_next = NULL;
+	if (t_len > 0) {
+		new_thread->lwp_prev = t_mem[t_len - 1]; 
+		new_thread->lwp_prev->lwp_next = new_thread;
+	} else {
+		new_thread->lwp_prev = NULL;
+	}
+	new_thread->sched_next = NULL;
+	new_thread->sched_prev = NULL;
+
+	// save the main threads state 
+	swap_rfiles(&new_thread->state, NULL); 
+	lwp_yield();
 }
 
 void lwp_exit(int status) {}
-void lwp_yield(void) {}
+void lwp_yield(void) {
+
+}
 tid_t lwp_wait(int* status) {}
 
 void lwp_set_schedular(scheduler func) {
