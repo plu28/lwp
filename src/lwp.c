@@ -10,11 +10,16 @@
 #define DEFAULT_STACK_SIZE 8338608 // 8 MiB
 #define BASE_LWP_SIZE 256
 
-static long tid_count = 0;
+static tid_t tid_count = 1;
 
 static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
+
+static void lwp_wrap(lwpfun func, void* arg) {
+	int rval = func(arg);
+	lwp_exit(rval);
+}
 
 tid_t lwp_create(lwpfun func, void* arg) {
 	// allocate thread data structure of not allocated already
@@ -68,8 +73,18 @@ tid_t lwp_create(lwpfun func, void* arg) {
 		return NO_THREAD;
 	}
 
-	rfile reg_file;
 	// TODO: Configure reg_file properly for the new lwp
+	
+	unsigned long* top = (unsigned long*)lwp_stack + stack_size; // calculate top of stack
+	top--; // top now points to the first addressable space 
+	top[0] = (unsigned long)lwp_wrap;	
+
+	rfile reg_file;
+	reg_file.rsp = (unsigned long)(top - 1); // rsp points to the next empty slot
+	reg_file.rbp = (unsigned long)top; // rbp points to the bp to return to. which is lwp_wrap 
+	reg_file.rdi = (unsigned long)func;
+	reg_file.rsi = (unsigned long)arg;
+	reg_file.fxsave = FPU_INIT;
 
 	// allocate thread on heap
 	thread new_thread = (thread)malloc(sizeof(context));
@@ -79,15 +94,17 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	new_thread->stack = (unsigned long*) lwp_stack;
 	new_thread->stacksize = stack_size;
 	new_thread->state = reg_file;
-	new_thread->next = NULL; 
+	new_thread->lwp_next = NULL; 
 	if (t_len > 0) {
-		new_thread->prev = t_mem[t_len - 1]; 
+		new_thread->lwp_prev = t_mem[t_len - 1]; 
+		new_thread->lwp_prev->lwp_next = new_thread;
 	} else {
-		new_thread->prev = NULL;
+		new_thread->lwp_prev = NULL;
 	}
-	new_thread->sched_one = NULL;
-	new_thread->sched_two = NULL;
+	new_thread->sched_next = NULL;
+	new_thread->sched_prev = NULL;
 
+	return new_thread->tid;
 }
 
 void lwp_exit(int status) {}
