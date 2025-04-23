@@ -115,11 +115,13 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	new_thread->sched_prev = NULL;
 
 	// admit the thread into the scheduler
+	curr_scheduler.admit(new_thread);
 
 	return new_thread->tid;
 }
 
 void lwp_start(void) {
+
 }
 
 void lwp_exit(int status) {}
