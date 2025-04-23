@@ -17,6 +17,7 @@ static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
 static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
+static thread curr_thread = NULL;
 
 static int initted = 0; // flag for seeing if our scheduler has been initted
 
@@ -97,27 +98,28 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	reg_file.fxsave = FPU_INIT;
 
 	// allocate thread on heap
-	thread new_thread = (thread)malloc(sizeof(context));
-	t_mem[t_len] = new_thread;
+	thread main_thread = (thread)malloc(sizeof(context));
+	t_mem[t_len] = main_thread;
 
-	new_thread->tid = tid_count++;
-	new_thread->stack = (unsigned long*) lwp_stack;
-	new_thread->stacksize = stack_size;
-	new_thread->state = reg_file;
-	new_thread->lwp_next = NULL; 
+	main_thread->tid = tid_count++;
+	main_thread->stack = (unsigned long*) lwp_stack;
+	main_thread->stacksize = stack_size;
+	main_thread->state = reg_file;
+	main_thread->lwp_next = NULL; 
 	if (t_len > 0) {
-		new_thread->lwp_prev = t_mem[t_len - 1]; 
-		new_thread->lwp_prev->lwp_next = new_thread;
+		main_thread->lwp_prev = t_mem[t_len - 1]; 
+		main_thread->lwp_prev->lwp_next = main_thread;
 	} else {
-		new_thread->lwp_prev = NULL;
+		main_thread->lwp_prev = NULL;
 	}
-	new_thread->sched_next = NULL;
-	new_thread->sched_prev = NULL;
+	main_thread->sched_next = NULL;
+	main_thread->sched_prev = NULL;
 
 	// admit the thread into the scheduler
-	curr_scheduler.admit(new_thread);
+	curr_scheduler.admit(main_thread);
+	curr_thread = main_thread;
 
-	return new_thread->tid;
+	return main_thread->tid;
 }
 
 void lwp_start(void) {
@@ -147,9 +149,23 @@ void lwp_start(void) {
 }
 
 void lwp_exit(int status) {}
-void lwp_yield(void) {
 
+void lwp_yield(void) {
+	if (curr_thread == NULL) {
+		perror("no current thread");
+		return;
+	}
+	thread next = curr_scheduler.next();
+
+	// if the scheduler says theres no next thread then thats it.
+	if (next == NULL) {
+		exit(curr_thread->status);
+		return;
+	}
+	next = tid2thread(next->tid);
+	swap_rfiles(&curr_thread->state, &next->state);
 }
+
 tid_t lwp_wait(int* status) {}
 
 void lwp_set_schedular(scheduler func) {
