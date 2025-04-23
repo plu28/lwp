@@ -12,7 +12,6 @@
 #define BASE_LWP_SIZE 256
 
 static tid_t tid_count = 1;
-
 static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
@@ -169,8 +168,30 @@ void lwp_yield(void) {
 
 tid_t lwp_wait(int* status) {}
 
-void lwp_set_schedular(scheduler func) {
+void lwp_set_scheduler(scheduler func) {
+	struct scheduler round_robin = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen};
+	if (func == NULL) {
+		curr_scheduler = round_robin;
+		return;
+	}
+
+	// store a list of all the threads
+	size_t temp_len = 0;
+	thread* temp_mem = (thread*)malloc(sizeof(context) * t_len); // I think its fair to assume that you won't have more threads in the scheduler then you have in here
+	
+	thread temp;
+	while ((temp = curr_scheduler.next()) != NULL) {
+		temp_mem[temp_len++] = temp;
+		curr_scheduler.remove(temp);
+	}
+
+	// set the new scheduler
 	curr_scheduler = *func;
+
+	// now, iterate over all the threads and admit them to the new 
+	for (int i = 0; i < temp_len; i++) {
+		curr_scheduler.admit(temp_mem[i]);
+	}
 }
 
 scheduler lwp_get_scheduler(void) {
@@ -178,8 +199,10 @@ scheduler lwp_get_scheduler(void) {
 }
 
 tid_t lwp_gettid(void) {
+	if (curr_thread == NULL) {
+		return NO_THREAD;
+	}
+	return curr_thread->tid;
 }
 thread tid2thread(tid_t tid) {}
-
-void swap_rfiles(rfile *old, rfile *new) {}
 
