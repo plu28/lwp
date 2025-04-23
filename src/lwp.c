@@ -16,7 +16,7 @@ static tid_t tid_count = 1;
 static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
-static scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen} /* init or shutdown could be null. ours isn't */
+static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
 
 static int initted = 0;
 
@@ -28,7 +28,7 @@ static void lwp_wrap(lwpfun func, void* arg) {
 tid_t lwp_create(lwpfun func, void* arg) {
 
 	if (!initted) {
-		curr_scheduler->init();
+		curr_scheduler.init();
 		initted = 1;
 	}
 
@@ -121,19 +121,20 @@ tid_t lwp_create(lwpfun func, void* arg) {
 
 void lwp_start(void) {
 }
+
 void lwp_exit(int status) {}
-tid_t lwp_gettid(void) {}
 void lwp_yield(void) {}
 tid_t lwp_wait(int* status) {}
 
 void lwp_set_schedular(scheduler func) {
-	curr_scheduler = func;
+	curr_scheduler = *func;
 }
 
 scheduler lwp_get_scheduler(void) {
-	return curr_scheduler;
+	return &curr_scheduler;
 }
 
+tid_t lwp_gettid(void) {}
 thread tid2thread(tid_t tid) {}
 
 void swap_rfiles(rfile *old, rfile *new) {}
