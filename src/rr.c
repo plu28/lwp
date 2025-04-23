@@ -1,10 +1,11 @@
 // Round Robin scheduler
 #include "../include/lwp.h"
+#include "../include/rr.h"
 #include <stdlib.h>
 // NOTE: cant use stdio because remove is defined in stdio and we have our own remove defined. C does not support function overloading.
 // #include <stdio.h> // required for perror
 
-#define BASE_QUEUE_MEMBERS 5
+#define BASE_QUEUE_MEMBERS 64
 
 // Queue data structure stored on heap
 typedef struct QNode {
@@ -19,13 +20,13 @@ static size_t q_cap; // holds the current maximum capacity of the queue
 static QNode** q_mem; // holds where the queue is stored on the heap
 
 
-void init(void) {
+void rr_init(void) {
 	top = NULL;
 	q_cap = BASE_QUEUE_MEMBERS;
 	q_len = 0;
 }
 
-void shutdown(void) {
+void rr_shutdown(void) {
 	// Free all memory in the data structure
 	for (int i = 0; i < q_len; i++) {
 		free(q_mem[i]);
@@ -33,7 +34,7 @@ void shutdown(void) {
 	free(q_mem);
 }
 
-void admit(thread new) {
+void rr_admit(thread new) {
 
 	// check if admitting the first thread
 	if (top == NULL) {
@@ -84,7 +85,7 @@ void admit(thread new) {
 	q_len++;
 }
 
-void remove(thread victim) {
+void rr_remove(thread victim) {
 	// do a linear pass through the data structure
 	
 	for (int i = 0; i < q_len; i++) {
@@ -113,7 +114,7 @@ void remove(thread victim) {
 }
 
 // get the next process in the queue
-thread next(void) {
+thread rr_next(void) {
 	if (top == NULL) {
 		return NULL;
 	}
@@ -121,6 +122,6 @@ thread next(void) {
 	return top->tinfo;
 }
 
-int qlen(void) {
+int rr_qlen(void) {
 	return q_len;
 }

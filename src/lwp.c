@@ -1,5 +1,6 @@
 // light weight processes
 #include "../include/lwp.h"
+#include "../include/rr.h"
 #include <stdio.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -15,6 +16,9 @@ static tid_t tid_count = 1;
 static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
+static scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen} /* init or shutdown could be null. ours isn't */
+
+static int initted = 0;
 
 static void lwp_wrap(lwpfun func, void* arg) {
 	int rval = func(arg);
@@ -22,6 +26,12 @@ static void lwp_wrap(lwpfun func, void* arg) {
 }
 
 tid_t lwp_create(lwpfun func, void* arg) {
+
+	if (!initted) {
+		curr_scheduler->init();
+		initted = 1;
+	}
+
 	// allocate thread data structure of not allocated already
 	if (t_mem == NULL) {
 		t_mem = (thread*)malloc(sizeof(thread) * BASE_LWP_SIZE);
@@ -77,11 +87,11 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	
 	unsigned long* top = (unsigned long*)lwp_stack + stack_size; // calculate top of stack
 	top--; // top now points to the first addressable space 
-	top[0] = (unsigned long)lwp_wrap;	
-
+	*top = 3; // some garbage value for the compiler
+	*(top - 1) = (unsigned long)lwp_wrap;	
+	
 	rfile reg_file;
-	reg_file.rsp = (unsigned long)(top - 1); // rsp points to the next empty slot
-	reg_file.rbp = (unsigned long)top; // rbp points to the bp to return to. which is lwp_wrap 
+	reg_file.rbp = (unsigned long)(top - 2); 
 	reg_file.rdi = (unsigned long)func;
 	reg_file.rsi = (unsigned long)arg;
 	reg_file.fxsave = FPU_INIT;
@@ -104,16 +114,26 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	new_thread->sched_next = NULL;
 	new_thread->sched_prev = NULL;
 
+	// admit the thread into the scheduler
+
 	return new_thread->tid;
 }
 
+void lwp_start(void) {
+}
 void lwp_exit(int status) {}
 tid_t lwp_gettid(void) {}
 void lwp_yield(void) {}
-void lwp_start(void) {}
 tid_t lwp_wait(int* status) {}
-void lwp_set_schedular(scheduler func) {}
-scheduler lwp_get_scheduler(void) {}
+
+void lwp_set_schedular(scheduler func) {
+	curr_scheduler = func;
+}
+
+scheduler lwp_get_scheduler(void) {
+	return curr_scheduler;
+}
+
 thread tid2thread(tid_t tid) {}
 
 void swap_rfiles(rfile *old, rfile *new) {}
