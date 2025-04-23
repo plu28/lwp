@@ -15,15 +15,35 @@ static tid_t tid_count = 1;
 static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len; // current size of thread list
 static size_t t_cap; // maximum size of thread list
+
+static thread* wait_list = NULL; // contains a list of any waiting threads waiting for a corresponding exit
+static thread* exit_list = NULL; // contains a list of any exited threads wiating for a corresponding wait
+
 static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
 static thread curr_thread = NULL;
 
 static int initted = 0; // flag for seeing if our scheduler has been initted
 
+// NOTE: style guide for function documentation. delete once done documenting
+/*
+ * function - short descriptions
+ *
+ * @param parameter - short parameter description
+ * @return return type - description of the return type
+ *
+ * */
+
+/*
+ * lwp_wrap - helper function from which thread functions are called from. necessary to guarantee return value is passed into lwp_exit
+ *
+ * @param lwpfun func - function being run by the thread
+ * @return void* arg - argument to the function
+ * */
 static void lwp_wrap(lwpfun func, void* arg) {
 	int rval = func(arg);
 	lwp_exit(rval);
 }
+
 
 tid_t lwp_create(lwpfun func, void* arg) {
 
@@ -147,6 +167,10 @@ void lwp_start(void) {
 	lwp_yield();
 }
 
+tid_t lwp_wait(int* status) {
+
+}
+
 void lwp_exit(int status) {}
 
 void lwp_yield(void) {
@@ -166,7 +190,6 @@ void lwp_yield(void) {
 	swap_rfiles(&temp->state, &next->state);
 }
 
-tid_t lwp_wait(int* status) {}
 
 void lwp_set_scheduler(scheduler func) {
 	struct scheduler round_robin = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen};
@@ -185,8 +208,18 @@ void lwp_set_scheduler(scheduler func) {
 		curr_scheduler.remove(temp);
 	}
 
+	// check if we have to shut down the old scheduler
+	if (curr_scheduler.shutdown != NULL) {
+		curr_scheduler.shutdown();
+	}
+
 	// set the new scheduler
 	curr_scheduler = *func;
+
+	// check if we have to init the new scheduler
+	if (curr_scheduler.init != NULL) {
+		curr_scheduler.init();
+	}
 
 	// now, iterate over all the threads and admit them to the new 
 	for (int i = 0; i < temp_len; i++) {
