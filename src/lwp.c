@@ -204,5 +204,14 @@ tid_t lwp_gettid(void) {
 	}
 	return curr_thread->tid;
 }
-thread tid2thread(tid_t tid) {}
+
+thread tid2thread(tid_t tid) {
+	// iterate over the thread list until a matching tid is found
+	for (int i = 0; i < t_len; i++) {
+		if (t_mem[i]->tid == tid) {
+			return t_mem[i];
+		}
+	}
+	return NULL;
+}
 
