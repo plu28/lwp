@@ -13,8 +13,8 @@
 
 static tid_t tid_count = 1;
 static thread* t_mem = NULL; // holds where the thread list is on the heap
-static size_t t_len; // current size of thread list
-static size_t t_cap; // maximum size of thread list
+static size_t t_len = 0; // current size of thread list
+static size_t t_cap = BASE_LWP_SIZE; // maximum size of thread list
 static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
 static thread curr_thread = NULL;
 
@@ -32,13 +32,17 @@ tid_t lwp_create(lwpfun func, void* arg) {
 		initted = 1;
 	}
 
+	printf("In lwp_create \n");
+
 	// allocate thread data structure of not allocated already
 	if (t_mem == NULL) {
+		printf("Thread not allocated yet \n");
 		t_mem = (thread*)malloc(sizeof(thread) * BASE_LWP_SIZE);
 		if (t_mem == NULL) {
 			perror("malloc");
 			return NO_THREAD;
 		}
+		printf("Thread allocated: Malloc Successful \n");
 	}
 
 	// check if thread data structure can hold the additional thread and realloc if it cant
@@ -64,7 +68,7 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	size_t stack_size;
 	struct rlimit rlim;
 	int rlimit_ret = getrlimit(RLIMIT_STACK, &rlim);
-	if (rlimit_ret == -1 | rlim.rlim_cur == RLIM_INFINITY) {
+	if ((rlimit_ret == -1) | (rlim.rlim_cur == RLIM_INFINITY)) {
 		// fall back to default size
 		stack_size = DEFAULT_STACK_SIZE;
 	} else {
@@ -85,7 +89,8 @@ tid_t lwp_create(lwpfun func, void* arg) {
 
 	// TODO: Configure reg_file properly for the new lwp
 	
-	unsigned long* top = (unsigned long*)lwp_stack + stack_size; // calculate top of stack
+	// Convert lwp_stack and stack_size to bytes (word + bytes -> bytes + bytes)
+	unsigned long* top = (unsigned long*)(lwp_stack + (stack_size / sizeof(unsigned long))); // calculate top of stack
 	top--; // top now points to the first addressable space 
 	*top = 3; // some garbage value for the compiler
 	*(top - 1) = (unsigned long)lwp_wrap;	
@@ -166,7 +171,9 @@ void lwp_yield(void) {
 	swap_rfiles(&temp->state, &next->state);
 }
 
-tid_t lwp_wait(int* status) {}
+tid_t lwp_wait(int* status) {
+	return 404;
+}
 
 void lwp_set_scheduler(scheduler func) {
 	struct scheduler round_robin = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen};
@@ -189,7 +196,8 @@ void lwp_set_scheduler(scheduler func) {
 	curr_scheduler = *func;
 
 	// now, iterate over all the threads and admit them to the new 
-	for (int i = 0; i < temp_len; i++) {
+	int i;
+	for (i = 0; i < temp_len; i++) {
 		curr_scheduler.admit(temp_mem[i]);
 	}
 }
@@ -207,7 +215,8 @@ tid_t lwp_gettid(void) {
 
 thread tid2thread(tid_t tid) {
 	// iterate over the thread list until a matching tid is found
-	for (int i = 0; i < t_len; i++) {
+	int i;
+	for (i = 0; i < t_len; i++) {
 		if (t_mem[i]->tid == tid) {
 			return t_mem[i];
 		}

@@ -28,7 +28,8 @@ void rr_init(void) {
 
 void rr_shutdown(void) {
 	// Free all memory in the data structure
-	for (int i = 0; i < q_len; i++) {
+	int i;
+	for (i = 0; i < q_len; i++) {
 		free(q_mem[i]);
 	}
 	free(q_mem);
@@ -87,8 +88,8 @@ void rr_admit(thread new) {
 
 void rr_remove(thread victim) {
 	// do a linear pass through the data structure
-	
-	for (int i = 0; i < q_len; i++) {
+	int i;
+	for (i = 0; i < q_len; i++) {
 		QNode* curr_node = q_mem[i];
 		if (curr_node->tinfo->tid == victim->tid) {
 			// found thread to delete
@@ -101,7 +102,8 @@ void rr_remove(thread victim) {
 			// adjust the arraylist
 			free(curr_node);
 			curr_node = NULL;
-			for (int j = i; j < q_len; j++) {
+			int j;
+			for (j = i; j < q_len; j++) {
 				QNode* temp = curr_node;
 				curr_node = q_mem[j + 1];
 				q_mem[j + 1] = temp;
