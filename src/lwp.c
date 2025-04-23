@@ -13,11 +13,14 @@
 
 static tid_t tid_count = 1;
 static thread* t_mem = NULL; // holds where the thread list is on the heap
-static size_t t_len; // current size of thread list
-static size_t t_cap; // maximum size of thread list
+static size_t t_len = 0; // current size of thread list
+static size_t t_cap = BASE_LWP_SIZE; // maximum size of thread list
 
 static thread* wait_list = NULL; // contains a list of any waiting threads waiting for a corresponding exit
+static size_t wait_len = 0;
+
 static thread* exit_list = NULL; // contains a list of any exited threads wiating for a corresponding wait
+static size_t exit_len = 0;
 
 static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
 static thread curr_thread = NULL;
@@ -103,9 +106,7 @@ tid_t lwp_create(lwpfun func, void* arg) {
 		return NO_THREAD;
 	}
 
-	// TODO: Configure reg_file properly for the new lwp
-	
-	unsigned long* top = (unsigned long*)lwp_stack + stack_size; // calculate top of stack
+	unsigned long* top = (unsigned long*)lwp_stack + (stack_size / (sizeof(unsigned long))); // calculate top of stack
 	top--; // top now points to the first addressable space 
 	*top = 3; // some garbage value for the compiler
 	*(top - 1) = (unsigned long)lwp_wrap;	
@@ -168,10 +169,31 @@ void lwp_start(void) {
 }
 
 tid_t lwp_wait(int* status) {
+	if (exit_len == 0) {
+		// no threads have exited. block
+		curr_scheduler.remove(curr_thread);
 
+		// add to the wait list
+		wait_list[wait_len++] = curr_thread;
+
+		if (t_len < 2) {
+			// would block forever because there is no other thread to yield to
+			return NO_THREAD;
+		}
+		lwp_yield(); // yield to the next thread
+	} 
+	// deallocate resources for the exited thread
 }
 
-void lwp_exit(int status) {}
+void lwp_exit(int status) {
+	if (wait_len == 0) {
+		// no threads waiting
+		exit_list[exit_len++] = curr_thread;
+
+		// remove thread from the scheduler
+		curr_scheduler.remove(curr_thread);
+	}
+}
 
 void lwp_yield(void) {
 	if (curr_thread == NULL) {
@@ -180,7 +202,8 @@ void lwp_yield(void) {
 	}
 	thread next = curr_scheduler.next();
 
-	// if the scheduler says theres no next thread then thats it.
+	// if the scheduler says theres no next thread 
+	// NOTE: Expect zombie threads if there are blocked threads
 	if (next == NULL) {
 		exit(curr_thread->status);
 	}
