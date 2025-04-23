@@ -15,15 +15,38 @@ static tid_t tid_count = 1;
 static thread* t_mem = NULL; // holds where the thread list is on the heap
 static size_t t_len = 0; // current size of thread list
 static size_t t_cap = BASE_LWP_SIZE; // maximum size of thread list
+
+static thread* wait_list = NULL; // contains a list of any waiting threads waiting for a corresponding exit
+static size_t wait_len = 0;
+
+static thread* exit_list = NULL; // contains a list of any exited threads wiating for a corresponding wait
+static size_t exit_len = 0;
+
 static struct scheduler curr_scheduler = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
 static thread curr_thread = NULL;
 
 static int initted = 0; // flag for seeing if our scheduler has been initted
 
+// NOTE: style guide for function documentation. delete once done documenting
+/*
+ * function - short descriptions
+ *
+ * @param parameter - short parameter description
+ * @return return type - description of the return type
+ *
+ * */
+
+/*
+ * lwp_wrap - helper function from which thread functions are called from. necessary to guarantee return value is passed into lwp_exit
+ *
+ * @param lwpfun func - function being run by the thread
+ * @return void* arg - argument to the function
+ * */
 static void lwp_wrap(lwpfun func, void* arg) {
 	int rval = func(arg);
 	lwp_exit(rval);
 }
+
 
 tid_t lwp_create(lwpfun func, void* arg) {
 
@@ -87,10 +110,7 @@ tid_t lwp_create(lwpfun func, void* arg) {
 		return NO_THREAD;
 	}
 
-	// TODO: Configure reg_file properly for the new lwp
-	
-	// Convert lwp_stack and stack_size to bytes (word + bytes -> bytes + bytes)
-	unsigned long* top = (unsigned long*)(lwp_stack + (stack_size / sizeof(unsigned long))); // calculate top of stack
+	unsigned long* top = (unsigned long*)lwp_stack + (stack_size / (sizeof(unsigned long))); // calculate top of stack
 	top--; // top now points to the first addressable space 
 	*top = 3; // some garbage value for the compiler
 	*(top - 1) = (unsigned long)lwp_wrap;	
@@ -152,7 +172,32 @@ void lwp_start(void) {
 	lwp_yield();
 }
 
-void lwp_exit(int status) {}
+tid_t lwp_wait(int* status) {
+	if (exit_len == 0) {
+		// no threads have exited. block
+		curr_scheduler.remove(curr_thread);
+
+		// add to the wait list
+		wait_list[wait_len++] = curr_thread;
+
+		if (t_len < 2) {
+			// would block forever because there is no other thread to yield to
+			return NO_THREAD;
+		}
+		lwp_yield(); // yield to the next thread
+	} 
+	// deallocate resources for the exited thread
+}
+
+void lwp_exit(int status) {
+	if (wait_len == 0) {
+		// no threads waiting
+		exit_list[exit_len++] = curr_thread;
+
+		// remove thread from the scheduler
+		curr_scheduler.remove(curr_thread);
+	}
+}
 
 void lwp_yield(void) {
 	if (curr_thread == NULL) {
@@ -161,7 +206,8 @@ void lwp_yield(void) {
 	}
 	thread next = curr_scheduler.next();
 
-	// if the scheduler says theres no next thread then thats it.
+	// if the scheduler says theres no next thread 
+	// NOTE: Expect zombie threads if there are blocked threads
 	if (next == NULL) {
 		exit(curr_thread->status);
 	}
@@ -192,8 +238,18 @@ void lwp_set_scheduler(scheduler func) {
 		curr_scheduler.remove(temp);
 	}
 
+	// check if we have to shut down the old scheduler
+	if (curr_scheduler.shutdown != NULL) {
+		curr_scheduler.shutdown();
+	}
+
 	// set the new scheduler
 	curr_scheduler = *func;
+
+	// check if we have to init the new scheduler
+	if (curr_scheduler.init != NULL) {
+		curr_scheduler.init();
+	}
 
 	// now, iterate over all the threads and admit them to the new 
 	int i;
