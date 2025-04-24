@@ -40,7 +40,7 @@ void rr_admit(thread new) {
 	// check if admitting the first thread
 	if (top == NULL) {
 		// initialize enough memory to start with
-		QNode** q_mem = (QNode**)malloc(sizeof(QNode*) * q_cap);
+		q_mem = (QNode**)malloc(sizeof(QNode*) * q_cap);
 		if (q_mem == NULL) {
 			// perror("malloc"); 
 			return;
