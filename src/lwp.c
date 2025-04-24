@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <stdlib.h>
+#include <string.h>
 // #define _GNU_SOURCE maybe include MAP_STACK in mmap if things are exploding running on server
 #define DEFAULT_STACK_SIZE 8338608 // 8 MiB
 #define BASE_LWP_SIZE 256
@@ -116,10 +117,11 @@ tid_t lwp_create(lwpfun func, void* arg) {
 	*(top - 1) = (unsigned long)lwp_wrap;	
 	
 	rfile reg_file;
-	reg_file.rbp = (unsigned long)(top - 2); 
+	reg_file.rbp = (unsigned long)(top - 2);
+	reg_file.rsp = (unsigned long)(top - 2);
 	reg_file.rdi = (unsigned long)func;
 	reg_file.rsi = (unsigned long)arg;
-	reg_file.fxsave = FPU_INIT;
+	memcpy(&reg_file.fxsave, &FPU_INIT, sizeof(struct fxsave));
 
 	// allocate thread on heap
 	thread main_thread = (thread)malloc(sizeof(context));
@@ -152,6 +154,7 @@ void lwp_start(void) {
 	t_mem[t_len] = new_thread;
 
 	rfile reg_file;
+	memcpy(&reg_file.fxsave, &FPU_INIT, sizeof(struct fxsave));
 
 	new_thread->tid = tid_count++;
 	new_thread->stack = NULL; // main thread has its own stack

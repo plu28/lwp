@@ -16,5 +16,15 @@ int main(){
 	
 	printf("Created thread with tid: %lu\n", tid);
 
+	lwp_start();
+
+	/*
+	int status,num;
+    tid_t t;
+    t = lwp_wait(&status);
+    num = LWPTERMSTAT(status);
+    printf("Thread %ld exited with status %d\n",t,num);
+	*/
+
 	return 0;
 }
