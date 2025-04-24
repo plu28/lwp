@@ -153,8 +153,6 @@ tid_t lwp_create(lwpfun func, void *arg) {
   } else {
     new_thread->lwp_prev = NULL;
   }
-  new_thread->sched_next = NULL;
-  new_thread->sched_prev = NULL;
 
   curr_scheduler.admit(new_thread);
 
@@ -162,6 +160,15 @@ tid_t lwp_create(lwpfun func, void *arg) {
 }
 
 void lwp_start(void) {
+
+  // allocate thread data structure if not allocated already
+  if (t_mem == NULL) {
+    t_mem = (thread *)malloc(sizeof(thread) * BASE_LWP_SIZE);
+    if (t_mem == NULL) {
+      perror("malloc");
+    }
+  }
+
   // create a lwp out of the main thread
   thread main_thread = (thread)malloc(sizeof(context));
   t_mem[t_len] = main_thread;
@@ -182,8 +189,6 @@ void lwp_start(void) {
     main_thread->lwp_prev = NULL;
   }
   main_thread->exited = NULL;
-  main_thread->sched_next = NULL;
-  main_thread->sched_prev = NULL;
 
   // admit the thread into the scheduler
   curr_scheduler.admit(main_thread);
@@ -247,6 +252,7 @@ void lwp_exit(int status) {
       exit_tail->exited = curr_thread;
       exit_tail = curr_thread;
     }
+    lwp_yield();
     // at this point, the thread is done. its resources just need to be
     // deallocated by a wait
   } else {
@@ -275,6 +281,7 @@ void lwp_yield(void) {
     return;
   }
   thread next = curr_scheduler.next();
+  // printf("curr_thread=%p curr_scheduler.next=%p\n", curr_thread, next);
 
   // if the scheduler says theres no next thread
   // NOTE: Expect zombie threads if we exit while there are blocked threads

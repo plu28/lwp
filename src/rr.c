@@ -2,6 +2,7 @@
 #include "../include/rr.h"
 #include "../include/lwp.h"
 #include <stdlib.h>
+#include <stdio.h>
 // NOTE: cant use stdio because remove is defined in stdio and we have our own
 // remove defined. C does not support function overloading. #include <stdio.h>
 // // required for perror
@@ -25,6 +26,17 @@ void rr_init(void) {
   q_cap = BASE_QUEUE_MEMBERS;
   q_len = 0;
 }
+
+// void print_Q() {
+// 	QNode* curr = top;
+// 	printf("top=%p total of %ld nodes\n", curr, q_len);
+// 	curr = curr->prev;
+// 	int i;
+// 	for (i = 0; i < q_len; i++) {
+// 		printf("curr->prev: %p\n", curr);
+// 		curr = curr->prev;
+// 	}
+// }
 
 void rr_shutdown(void) {
   // Free all memory in the data structure
@@ -116,11 +128,13 @@ void rr_remove(thread victim) {
 
 // get the next process in the queue
 thread rr_next(void) {
+	// print_Q();
   if (top == NULL) {
     return NULL;
   }
+	thread temp = top->tinfo;
   top = top->prev;
-  return top->tinfo;
+  return temp;
 }
 
 int rr_qlen(void) { return q_len; }

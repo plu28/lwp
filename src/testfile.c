@@ -1,4 +1,4 @@
-#include "lwp.h"
+#include "../include/lwp.h"
 #include <stdio.h>
 
 int new_thread(void *arg){
@@ -7,27 +7,9 @@ int new_thread(void *arg){
 }
 
 int main(){
-	tid_t tid = lwp_create(new_thread, "big mode");
-
-	if(tid == NO_THREAD){
-		printf("Failed returning thread\n");
-		return 1;
-	}
-	
-	printf("Created thread with tid: %lu\n", tid);
-
+	tid_t tid =  lwp_create(new_thread, "big mode");
 	lwp_start();
-	printf("Back in main after lwp_start\n");
-
-	int status,num;
-    tid_t t;
-    t = lwp_wait(&status);
-    num = LWPTERMSTAT(status);
-    printf("Thread %ld exited with status %d\n",t,num);
-	
-	if (lwp_wait(&status) == NO_THREAD) {
-    	printf("No more threads to wait for.\n");
-	}
+	thread t = tid2thread(tid);
 
 	return 0;
 }
