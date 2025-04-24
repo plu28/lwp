@@ -212,6 +212,18 @@ tid_t lwp_wait(int* status) {
 		lwp_yield(); // yield to the next thread
 	} 
 	// deallocate resources for the exited thread
+	if (exit_head == NULL) {
+		perror("This should never happen.");
+	}
+	
+	thread exiting_thread = exit_head;
+	exit_head = exit_head->exited;
+	free(exiting_thread);
+
+	if (status) {
+		*status = exiting_thread->status;
+	}
+	return exiting_thread->tid;
 }
 
 void lwp_exit(int status) {
@@ -230,11 +242,21 @@ void lwp_exit(int status) {
 		// at this point, the thread is done. its resources just need to be deallocated by a wait
 	} else {
 		// we have a thread waiting, so lets unblock the head waiting thread
-		curr_scheduler.remove(curr_thread);
+		
+		// add the exiting thread to the list so that wait has something to exit
+		if (exit_head == NULL) {
+			exit_head = curr_thread;
+			exit_tail = curr_thread;
+		} else {
+			exit_tail->exited = curr_thread;
+			exit_tail = curr_thread;
+		}
+
 		curr_scheduler.admit(wait_head);
 		thread temp = wait_head;
 		wait_head = wait_head->exited;
 		temp->exited = NULL; // remove from the queue
+		lwp_yield(); 
 	}
 }
 
@@ -314,4 +336,3 @@ thread tid2thread(tid_t tid) {
 	}
 	return NULL;
 }
-
