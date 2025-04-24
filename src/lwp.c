@@ -217,6 +217,11 @@ tid_t lwp_wait(int* status) {
 	}
 	
 	thread exiting_thread = exit_head;
+
+	// adjusting pointers inside our data structure
+	exiting_thread->lwp_prev = exiting_thread->lwp_next;
+	exiting_thread->lwp_next->lwp_prev = exiting_thread->lwp_prev;
+
 	exit_head = exit_head->exited;
 	free(exiting_thread);
 
