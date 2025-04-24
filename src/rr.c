@@ -115,10 +115,11 @@ void rr_remove(thread victim) {
       free(curr_node);
       curr_node = NULL;
       int j;
-      for (j = i; j < q_len; j++) {
-        QNode *temp = curr_node;
-        curr_node = q_mem[j + 1];
-        q_mem[j + 1] = temp;
+      for (j = i; j < (q_len - 1); j++) {
+        q_mem[j] = q_mem[j + 1];
+        // QNode *temp = curr_node;
+        // curr_node = q_mem[j + 1];
+        // q_mem[j + 1] = temp;
       }
       q_len--;
       return;

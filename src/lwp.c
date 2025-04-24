@@ -24,9 +24,12 @@ static thread wait_tail = NULL;
 static thread exit_head = NULL;
 static thread exit_tail = NULL;
 
-static struct scheduler curr_scheduler = {
+static struct scheduler round_robin = {
     rr_init, rr_shutdown, rr_admit, rr_remove,
-    rr_next, rr_qlen}; /* init or shutdown could be null. ours isn't */
+    rr_next, rr_qlen};
+/* init or shutdown could be null. ours isn't */
+
+static scheduler curr_scheduler = &round_robin;
 static thread curr_thread = NULL;
 
 static int initted = 0; // flag for seeing if our scheduler has been initted
@@ -55,7 +58,7 @@ static void lwp_wrap(lwpfun func, void *arg) {
 tid_t lwp_create(lwpfun func, void *arg) {
 
   if (!initted) {
-    curr_scheduler.init();
+    curr_scheduler->init();
     initted = 1;
   }
 
@@ -154,7 +157,7 @@ tid_t lwp_create(lwpfun func, void *arg) {
     new_thread->lwp_prev = NULL;
   }
 
-  curr_scheduler.admit(new_thread);
+  curr_scheduler->admit(new_thread);
 
   return new_thread->tid;
 }
@@ -191,7 +194,7 @@ void lwp_start(void) {
   main_thread->exited = NULL;
 
   // admit the thread into the scheduler
-  curr_scheduler.admit(main_thread);
+  curr_scheduler->admit(main_thread);
   curr_thread = main_thread;
 
   // save the main threads state
@@ -202,7 +205,7 @@ void lwp_start(void) {
 tid_t lwp_wait(int *status) {
   if (exit_head == NULL) {
     // no threads have exited. block
-    if (curr_scheduler.qlen() < 2) {
+    if (curr_scheduler->qlen() < 2) {
       // would block forever because there is no other thread to yield to
       return NO_THREAD;
     }
@@ -216,7 +219,7 @@ tid_t lwp_wait(int *status) {
       wait_tail = curr_thread;
     }
 
-    curr_scheduler.remove(curr_thread);
+    curr_scheduler->remove(curr_thread);
     lwp_yield(); // yield to the next thread
   }
   // deallocate resources for the exited thread
@@ -241,7 +244,8 @@ tid_t lwp_wait(int *status) {
 
 void lwp_exit(int status) {
   // remove thread from the scheduler
-  curr_scheduler.remove(curr_thread);
+  curr_scheduler->remove(curr_thread);
+  curr_thread->status = MKTERMSTAT(LWP_TERM, status);
 
   if (wait_head == NULL) {
     // no threads waiting, add to the exit list
@@ -267,7 +271,7 @@ void lwp_exit(int status) {
       exit_tail = curr_thread;
     }
 
-    curr_scheduler.admit(wait_head);
+    curr_scheduler->admit(wait_head);
     thread temp = wait_head;
     wait_head = wait_head->exited;
     temp->exited = NULL; // remove from the queue
@@ -280,7 +284,7 @@ void lwp_yield(void) {
     perror("no current thread");
     return;
   }
-  thread next = curr_scheduler.next();
+  thread next = curr_scheduler->next();
   // printf("curr_thread=%p curr_scheduler.next=%p\n", curr_thread, next);
 
   // if the scheduler says theres no next thread
@@ -295,47 +299,46 @@ void lwp_yield(void) {
 }
 
 void lwp_set_scheduler(scheduler func) {
-  struct scheduler round_robin = {rr_init,   rr_shutdown, rr_admit,
-                                  rr_remove, rr_next,     rr_qlen};
   if (func == NULL) {
-    curr_scheduler = round_robin;
-    return;
+    func = &round_robin;
   }
 
   // store a list of all the threads
   size_t temp_len = 0;
   thread *temp_mem = (thread *)malloc(
-      sizeof(context) *
+      sizeof(thread) *
       t_len); // I think its fair to assume that you won't have more threads in
               // the scheduler then you have in here
 
   thread temp;
-  while ((temp = curr_scheduler.next()) != NULL) {
+  while ((temp = curr_scheduler->next()) != NULL) {
     temp_mem[temp_len++] = temp;
-    curr_scheduler.remove(temp);
+    curr_scheduler->remove(temp);
   }
 
   // check if we have to shut down the old scheduler
-  if (curr_scheduler.shutdown != NULL) {
-    curr_scheduler.shutdown();
+  if (curr_scheduler->shutdown != NULL) {
+    curr_scheduler->shutdown();
   }
 
   // set the new scheduler
-  curr_scheduler = *func;
+  curr_scheduler = func;
 
   // check if we have to init the new scheduler
-  if (curr_scheduler.init != NULL) {
-    curr_scheduler.init();
+  if (curr_scheduler->init != NULL) {
+    curr_scheduler->init();
   }
 
   // now, iterate over all the threads and admit them to the new
   int i;
   for (i = 0; i < temp_len; i++) {
-    curr_scheduler.admit(temp_mem[i]);
+    curr_scheduler->admit(temp_mem[i]);
   }
+
+  free(temp_mem);
 }
 
-scheduler lwp_get_scheduler(void) { return &curr_scheduler; }
+scheduler lwp_get_scheduler(void) { return curr_scheduler; }
 
 tid_t lwp_gettid(void) {
   if (curr_thread == NULL) {
