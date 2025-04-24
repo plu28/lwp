@@ -59,17 +59,13 @@ tid_t lwp_create(lwpfun func, void *arg) {
     initted = 1;
   }
 
-  printf("In lwp_create \n");
-
   // allocate thread data structure of not allocated already
   if (t_mem == NULL) {
-    printf("Thread not allocated yet \n");
     t_mem = (thread *)malloc(sizeof(thread) * BASE_LWP_SIZE);
     if (t_mem == NULL) {
       perror("malloc");
       return NO_THREAD;
     }
-    printf("Thread allocated: Malloc Successful \n");
   }
 
   // check if thread data structure can hold the additional thread and realloc
