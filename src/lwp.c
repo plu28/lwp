@@ -186,7 +186,6 @@ void lwp_start(void) {
 	curr_scheduler.admit(main_thread);
 	curr_thread = main_thread;
 
-
 	// save the main threads state 
 	swap_rfiles(&main_thread->state, NULL); 
 	lwp_yield();

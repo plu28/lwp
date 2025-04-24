@@ -17,14 +17,17 @@ int main(){
 	printf("Created thread with tid: %lu\n", tid);
 
 	lwp_start();
+	printf("Back in main after lwp_start\n");
 
-	/*
 	int status,num;
     tid_t t;
     t = lwp_wait(&status);
     num = LWPTERMSTAT(status);
     printf("Thread %ld exited with status %d\n",t,num);
-	*/
+	
+	if (lwp_wait(&status) == NO_THREAD) {
+    	printf("No more threads to wait for.\n");
+	}
 
 	return 0;
 }
