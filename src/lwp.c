@@ -135,7 +135,7 @@ tid_t lwp_create(lwpfun func, void* arg) {
 
 	// allocate thread on heap
 	thread new_thread = (thread)malloc(sizeof(context));
-	t_mem[t_len] = new_thread;
+	t_mem[t_len++] = new_thread;
 
 	new_thread->tid = tid_count++;
 	new_thread->stack = (unsigned long*) lwp_stack;
@@ -194,7 +194,7 @@ void lwp_start(void) {
 tid_t lwp_wait(int* status) {
 	if (exit_head == NULL) {
 		// no threads have exited. block
-		if (t_len < 2) {
+		if (curr_scheduler.qlen() < 2) {
 			// would block forever because there is no other thread to yield to
 			return NO_THREAD;
 		}
@@ -227,13 +227,14 @@ void lwp_exit(int status) {
 			exit_tail->exited = curr_thread;
 			exit_tail = curr_thread;
 		}
-
-		
 		// at this point, the thread is done. its resources just need to be deallocated by a wait
 	} else {
-		// we have a thread waiting, so lets unblock the head
+		// we have a thread waiting, so lets unblock the head waiting thread
 		curr_scheduler.remove(curr_thread);
-
+		curr_scheduler.admit(wait_head);
+		thread temp = wait_head;
+		wait_head = wait_head->exited;
+		temp->exited = NULL; // remove from the queue
 	}
 }
 
