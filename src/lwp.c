@@ -24,9 +24,8 @@ static thread wait_tail = NULL;
 static thread exit_head = NULL;
 static thread exit_tail = NULL;
 
-static struct scheduler round_robin = {
-    rr_init, rr_shutdown, rr_admit, rr_remove,
-    rr_next, rr_qlen};
+static struct scheduler round_robin = {rr_init,   rr_shutdown, rr_admit,
+                                       rr_remove, rr_next,     rr_qlen};
 /* init or shutdown could be null. ours isn't */
 
 static scheduler curr_scheduler = &round_robin;
@@ -148,13 +147,13 @@ tid_t lwp_create(lwpfun func, void *arg) {
   new_thread->stack = (unsigned long *)lwp_stack;
   new_thread->stacksize = stack_size;
   new_thread->state = reg_file;
-  new_thread->lwp_next = NULL;
+  new_thread->lib_one = NULL;
   new_thread->exited = NULL;
   if (t_len > 0) {
-    new_thread->lwp_prev = t_mem[t_len - 1];
-    new_thread->lwp_prev->lwp_next = new_thread;
+    new_thread->lib_two = t_mem[t_len - 1];
+    new_thread->lib_two->lib_one = new_thread;
   } else {
-    new_thread->lwp_prev = NULL;
+    new_thread->lib_two = NULL;
   }
 
   curr_scheduler->admit(new_thread);
@@ -184,12 +183,12 @@ void lwp_start(void) {
   main_thread->stack = NULL; // main thread has its own stack
   main_thread->stacksize = 0;
   main_thread->state = reg_file;
-  main_thread->lwp_next = NULL;
+  main_thread->lib_one = NULL;
   if (t_len > 0) {
-    main_thread->lwp_prev = t_mem[t_len - 1];
-    main_thread->lwp_prev->lwp_next = main_thread;
+    main_thread->lib_two = t_mem[t_len - 1];
+    main_thread->lib_two->lib_one = main_thread;
   } else {
-    main_thread->lwp_prev = NULL;
+    main_thread->lib_two = NULL;
   }
   main_thread->exited = NULL;
 
@@ -230,8 +229,8 @@ tid_t lwp_wait(int *status) {
   thread exiting_thread = exit_head;
 
   // adjusting pointers inside our data structure
-  exiting_thread->lwp_prev = exiting_thread->lwp_next;
-  exiting_thread->lwp_next->lwp_prev = exiting_thread->lwp_prev;
+  exiting_thread->lib_two = exiting_thread->lib_one;
+  exiting_thread->lib_one->lwp_prev = exiting_thread->lib_two;
 
   exit_head = exit_head->exited;
   free(exiting_thread);
@@ -305,10 +304,16 @@ void lwp_set_scheduler(scheduler func) {
 
   // store a list of all the threads
   size_t temp_len = 0;
+  // printf("SETTING NEW SCHEDULER t_len=%ld q_len=%d\n", t_len,
+  // curr_scheduler->qlen();
   thread *temp_mem = (thread *)malloc(
       sizeof(thread) *
       t_len); // I think its fair to assume that you won't have more threads in
               // the scheduler then you have in here
+  if (temp_mem == NULL) {
+    perror("malloc");
+    return;
+  }
 
   thread temp;
   while ((temp = curr_scheduler->next()) != NULL) {
